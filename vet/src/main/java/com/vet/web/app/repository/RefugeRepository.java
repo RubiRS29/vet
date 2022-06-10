@@ -12,4 +12,6 @@ public interface RefugeRepository extends JpaRepository<Refuge, Long> {
     @Query(value = "SELECT COUNT(*) FROM refuge WHERE email = :email",  nativeQuery = true)
     Long countRefuge(@Param("email") String email);
 
+
+
 }

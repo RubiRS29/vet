@@ -22,7 +22,6 @@ public interface UserMapper {
 
     UserMapper INSTANCE = Mappers.getMapper( UserMapper.class );
 
-    @Mapping(target="id", source="id")
     @Mapping(target="firstName", source="firstName")
     @Mapping(target="lastName", source="lastName")
     @Mapping(target="email", source="lastName")
@@ -34,7 +33,6 @@ public interface UserMapper {
     @InheritInverseConfiguration
     Veterinarian toVeterinarian(UserDto userDto);
 
-    @Mapping(target="id", source="id")
     @Mapping(target="firstName", source="firstName")
     @Mapping(target="lastName", source="lastName")
     @Mapping(target="email", source="lastName")
@@ -46,7 +44,6 @@ public interface UserMapper {
     @InheritInverseConfiguration
     Adopter toAdopter(UserDto userDto);
 
-    @Mapping(target="id", source="id")
     @Mapping(target="firstName", source="firstName")
     @Mapping(target="lastName", source="lastName")
     @Mapping(target="email", source="lastName")
