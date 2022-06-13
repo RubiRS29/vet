@@ -11,4 +11,6 @@ public interface VeterinarianRepository extends JpaRepository<Veterinarian, Long
 
     @Query(value = "SELECT COUNT(*) FROM veterinarian WHERE email = :email",  nativeQuery = true)
     Long countVeterinarian(@Param("email") String email);
+
+    long countByEmail(String email);
 }

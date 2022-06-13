@@ -10,6 +10,8 @@ import org.springframework.stereotype.Repository;
 public interface AdopterRepository extends JpaRepository<Adopter, Long> {
 
 
-    @Query(value = "SELECT COUNT(*) FROM adopt WHERE email = :email",  nativeQuery = true)
+    @Query(value = "SELECT COUNT(id) FROM adopt WHERE email = :email",  nativeQuery = true)
     Long countAdopter(@Param("email") String email);
+
+    long countByEmail(String email);
 }

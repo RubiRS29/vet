@@ -55,8 +55,9 @@ public class LoginService {
                  */
     public ResponseEntity<Response> register(UserDto user ) {
 
-        if( justOneEmail( user.getEmail() ) ){
-            logger.info(String.format("Email %s has been registered", user.getEmail()));
+
+        if (!justOneEmail(user.getEmail())) {
+
             throw new BadRequestException(String.format("Email %s has been registered", user.getEmail()));
         }
 
@@ -87,9 +88,15 @@ public class LoginService {
 
     private boolean justOneEmail( String email ){
 
-        return adopterRepo.countAdopter( email ) == 0 ||
-                veterinarianRepo.countVeterinarian( email ) == 0 ||
-                refugeRepo.countRefuge( email ) == 0;
+        if(adopterRepo.countByEmail(email) != 0
+                || veterinarianRepo.countByEmail(email) != 0
+                || refugeRepo.countByEmail(email) != 0){
+
+            logger.info(String.format("Email %s has been registered", email));
+            return false;
+        }
+
+        return true;
 
     }
 

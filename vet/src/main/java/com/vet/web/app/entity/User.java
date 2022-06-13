@@ -1,7 +1,9 @@
 package com.vet.web.app.entity;
 
 
+import com.vet.web.app.exceptions.BadRequestException;
 import lombok.*;
+import org.apache.commons.validator.routines.EmailValidator;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -49,5 +51,16 @@ public class User {
 
     @UpdateTimestamp
     private LocalDate updated;
+
+    public void setEmail(String email) {
+
+        EmailValidator validator = EmailValidator.getInstance();
+
+        if(!validator.isValid(email)){
+            throw new BadRequestException("Email is not valid");
+        }
+
+        this.email = email;
+    }
 
 }
