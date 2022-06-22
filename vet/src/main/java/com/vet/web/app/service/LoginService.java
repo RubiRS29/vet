@@ -14,10 +14,13 @@ import com.vet.web.app.repository.VeterinarianRepository;
 import com.vet.web.app.response.Response;
 import com.vet.web.app.response.ResponseHandler;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.springframework.util.StringUtils;
+
+import static com.vet.web.app.util.Utils.validPassword;
 
 
 /*
@@ -33,26 +36,31 @@ public class LoginService {
     private final RefugeRepository refugeRepo;
     private final UserMapper mapper;
     private final ResponseHandler responseHandler;
+    private final PasswordEncoder passwordEncoder;
     private TypeOfUser type;
 
 
     private final Logger logger = LogManager.getLogger(LoginService.class);
 
+
     public LoginService(AdopterRepository adopterRepo,
                         VeterinarianRepository veterinarianRepo,
                         RefugeRepository refugeRepo,
-                        UserMapper mapper, ResponseHandler responseHandler) {
+                        UserMapper mapper,
+                        ResponseHandler responseHandler,
+                        PasswordEncoder passwordEncoder) {
         this.adopterRepo = adopterRepo;
         this.veterinarianRepo = veterinarianRepo;
         this.refugeRepo = refugeRepo;
         this.mapper = mapper;
         this.responseHandler = responseHandler;
+        this.passwordEncoder = passwordEncoder;
     }
 
     /*
-                    We have to make sure what kind of user is,
-                    e.i. veterinarian, adopter or refuge
-                 */
+                        We have to make sure what kind of user is,
+                        e.i. veterinarian, adopter or refuge
+                     */
     public ResponseEntity<Response> register(UserDto user ) {
 
 
@@ -61,6 +69,11 @@ public class LoginService {
             throw new BadRequestException(String.format("Email %s has been registered", user.getEmail()));
         }
 
+        if (!validPassword(user.getPassword())) {
+            throw new BadRequestException("Password is not valid");
+        }
+
+
         logger.info("Checking user's data");
 
         if( !StringUtils.hasText(user.getEmail()) ||  !StringUtils.hasText(user.getFirstName()) ||
@@ -68,6 +81,8 @@ public class LoginService {
             logger.info("Some data has been missing");
             throw new BadRequestException("Some data has been missing");
         }
+
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
 
         switch ( user.getType() ){
 
@@ -85,6 +100,9 @@ public class LoginService {
 
         return responseHandler.successResponse(String.format("User %s has been successfully created", user.getFirstName()));
     }
+
+
+
 
     private boolean justOneEmail( String email ){
 
