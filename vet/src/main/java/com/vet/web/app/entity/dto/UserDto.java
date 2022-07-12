@@ -1,7 +1,7 @@
 package com.vet.web.app.entity.dto;
 
 import com.sun.istack.NotNull;
-import com.vet.web.app.entity.TypeOfUser;
+import com.vet.web.app.entity.Roles;
 import lombok.*;
 
 import java.time.LocalDate;
@@ -22,8 +22,9 @@ public class UserDto {
     private String email;
     @NotNull
     private String password;
+
     @NotNull
-    private TypeOfUser type;
+    private Roles roles;
 
     private LocalDate created;
     private LocalDate updated;

@@ -1,26 +1,36 @@
 package com.vet.web.app.service;
 
 
-import com.vet.web.app.entity.Adopter;
-import com.vet.web.app.entity.Refuge;
-import com.vet.web.app.entity.TypeOfUser;
-import com.vet.web.app.entity.Veterinarian;
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.JWTVerifier;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.interfaces.DecodedJWT;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vet.web.app.entity.dto.UserDto;
 import com.vet.web.app.exceptions.BadRequestException;
-import com.vet.web.app.mapper.UserMapper;
-import com.vet.web.app.repository.AdopterRepository;
-import com.vet.web.app.repository.RefugeRepository;
-import com.vet.web.app.repository.VeterinarianRepository;
+import com.vet.web.app.repository.UserRepository;
 import com.vet.web.app.response.Response;
 import com.vet.web.app.response.ResponseHandler;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.springframework.util.StringUtils;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.*;
+
 import static com.vet.web.app.util.Utils.validPassword;
+import static org.springframework.http.HttpHeaders.AUTHORIZATION;
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
 
 /*
@@ -29,43 +39,34 @@ import static com.vet.web.app.util.Utils.validPassword;
  */
 
 @Service
-public class LoginService {
+public class LoginService implements IAuthenticateUser, UserDetailsService {
 
-    private final AdopterRepository adopterRepo;
-    private final VeterinarianRepository veterinarianRepo;
-    private final RefugeRepository refugeRepo;
-    private final UserMapper mapper;
+    private final UserRepository userRepository;
     private final ResponseHandler responseHandler;
-    private final PasswordEncoder passwordEncoder;
-    private TypeOfUser type;
-
 
     private final Logger logger = LogManager.getLogger(LoginService.class);
+    private final BCryptPasswordEncoder bCryptPasswordEncoder;
 
 
-    public LoginService(AdopterRepository adopterRepo,
-                        VeterinarianRepository veterinarianRepo,
-                        RefugeRepository refugeRepo,
-                        UserMapper mapper,
-                        ResponseHandler responseHandler,
-                        PasswordEncoder passwordEncoder) {
-        this.adopterRepo = adopterRepo;
-        this.veterinarianRepo = veterinarianRepo;
-        this.refugeRepo = refugeRepo;
-        this.mapper = mapper;
+    public LoginService(UserRepository userRepository,
+                        ResponseHandler responseHandler, BCryptPasswordEncoder bCryptPasswordEncoder) {
+        this.userRepository = userRepository;
         this.responseHandler = responseHandler;
-        this.passwordEncoder = passwordEncoder;
+        this.bCryptPasswordEncoder = bCryptPasswordEncoder;
     }
 
     /*
-                        We have to make sure what kind of user is,
-                        e.i. veterinarian, adopter or refuge
-                     */
-    public ResponseEntity<Response> register(UserDto user ) {
+                                We have to make sure what kind of user is,
+                                e.i. veterinarian, adopter or refuge
 
 
-        if (!justOneEmail(user.getEmail())) {
+            @Override                 */
+    public ResponseEntity<Response> signup( UserDto user ) {
 
+        logger.info("Checking user's data");
+
+        if (!userRepository.isUniqueEmail(user.getEmail())) {
+            logger.info(String.format("Email %s has been registered", user.getEmail()));
             throw new BadRequestException(String.format("Email %s has been registered", user.getEmail()));
         }
 
@@ -74,48 +75,84 @@ public class LoginService {
         }
 
 
-        logger.info("Checking user's data");
-
         if( !StringUtils.hasText(user.getEmail()) ||  !StringUtils.hasText(user.getFirstName()) ||
             !StringUtils.hasText(user.getLastName())|| !StringUtils.hasText(user.getPassword()) ) {
             logger.info("Some data has been missing");
             throw new BadRequestException("Some data has been missing");
         }
 
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setPassword(bCryptPasswordEncoder.encode(user.getPassword()));
 
-        switch ( user.getType() ){
-
-            case ADOPTER:
-                Adopter adopter = mapper.toAdopter(user);
-                adopterRepo.save(adopter);
-            case VETERINARIAN:
-                Veterinarian veterinarian = mapper.toVeterinarian(user);
-                veterinarianRepo.save(veterinarian);
-            case REFUGE:
-                Refuge refuge = mapper.toRefuge(user);
-                refugeRepo.save(refuge);
-
-        }
+        userRepository.save(user);
 
         return responseHandler.successResponse(String.format("User %s has been successfully created", user.getFirstName()));
     }
 
+    @Override
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
 
+        Optional<UserDto> userDto = userRepository.findUserByEmail(email);
 
-
-    private boolean justOneEmail( String email ){
-
-        if(adopterRepo.countByEmail(email) != 0
-                || veterinarianRepo.countByEmail(email) != 0
-                || refugeRepo.countByEmail(email) != 0){
-
-            logger.info(String.format("Email %s has been registered", email));
-            return false;
+        if (userDto.isEmpty()) {
+            logger.error(String.format("User's email %s is not found", email));
+            throw new UsernameNotFoundException((String.format("User's email %s is not found", email)));
         }
 
-        return true;
+        Collection<SimpleGrantedAuthority> authorities = new ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority(userDto.get().getRoles().name()));
 
+        return new User(userDto.get().getEmail(), userDto.get().getPassword(), authorities);
     }
 
+    @Override
+    public void refreshToken(HttpServletRequest request,
+                             HttpServletResponse response) throws IOException {
+        String header = request.getHeader(AUTHORIZATION);
+
+        if (header != null && header.startsWith("Bearer ")) {
+
+            try {
+                String refresh_token = header.substring("Bearer ".length());
+
+                Algorithm algorithm = Algorithm.HMAC256("secret".getBytes());
+                JWTVerifier verifier = JWT.require(algorithm).build();
+                DecodedJWT decoder = verifier.verify(refresh_token);
+                String email = decoder.getSubject();
+
+                UserDto user = userRepository.findUserByEmail(email).orElseThrow(() -> new UsernameNotFoundException("user not found"));
+
+
+                String access_token = JWT.create()
+                        .withSubject(user.getEmail())
+                        .withExpiresAt(new Date(System.currentTimeMillis() + 10 * 6 * 1000))
+                        .withIssuer(request.getRequestURL().toString())
+                        .withClaim("roles", Collections.singletonList(user.getRoles()))
+                        .sign(algorithm);
+
+                Map<String, String> tokens = new HashMap<>();
+
+                tokens.put("access_token", access_token);
+                tokens.put("refresh_token", refresh_token);
+
+
+                response.setContentType(APPLICATION_JSON_VALUE);
+                new ObjectMapper().writeValue(response.getOutputStream(), tokens);
+
+
+            } catch (Exception e) {
+
+                logger.info("Error login in {}", e.getMessage());
+                response.setHeader("error", e.getMessage());
+
+                Map<String, String> error = new HashMap<String, String>();
+
+                error.put("error_message", e.getMessage());
+
+                response.setContentType(APPLICATION_JSON_VALUE);
+                new ObjectMapper().writeValue(response.getOutputStream(), error);
+            }
+        }else {
+            throw new RuntimeException("refresh_token is missing");
+        }
+    }
 }

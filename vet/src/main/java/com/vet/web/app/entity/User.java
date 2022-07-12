@@ -9,6 +9,8 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import javax.persistence.*;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @MappedSuperclass
 @Getter @Setter
@@ -34,7 +36,7 @@ public class User {
     private String email;
 
     @Column(nullable = false,
-            length = 40)
+            length = 140)
     private String password;
 
     @Column(length = 40)
@@ -51,6 +53,8 @@ public class User {
 
     @UpdateTimestamp
     private LocalDate updated;
+
+    private Roles roles;
 
     public void setEmail(String email) {
 
